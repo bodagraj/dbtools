@@ -1,0 +1,86 @@
+#!/usr/bin/python3
+import multiprocessing as mp
+import logging
+import threading
+import time
+from logging.handlers import RotatingFileHandler
+import os
+import subprocess
+
+
+
+#print("Number of processors: ", mp.cpu_count())
+
+
+def setup_logging():
+    
+    """
+    Setup a default log file to /tmp/filename.log
+    logfile will be rotated if it crosses 500MB upto maximum of 4 recent logs
+    Format prints as follows
+    2022-01-27 02:16:09,713 - [DEBUG] - [Thread-1] - root - (snowtool.py).worker(12) - Hi from myfunc
+    2022-01-27 02:16:09,714 - [DEBUG] - [MainThread] - root - (snowtool.py).main(38) - Hello from main
+    """
+    
+    prog_name = os.path.basename(os.path.realpath(__file__))
+    fname = '/tmp/'+ prog_name + '.log'
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s - [%(levelname)s] - [%(threadName)s] - %(name)s - (%(filename)s).%(funcName)s(%(lineno)d) - %(message)s",
+        handlers=[RotatingFileHandler(filename=fname,mode='w', maxBytes=512000, backupCount=4)]
+    )
+    print("check detailed progress in [",fname,"] hit cntrl+c to terminate the program")
+
+        
+def main():
+
+    """
+    Multi threaded program it uses multithreading rater than multiprocessing, as the logic of this progra is not compute intesnive.
+    """
+    
+    info = {'stop': False}
+    thread = threading.Thread(target=worker, args=(info,))
+    thread.start()
+    
+        
+    while True:
+        try:
+            logging.debug('Hello from main')
+            time.sleep(0.75)
+			
+        except KeyboardInterrupt:
+            info['stop'] = True
+            logging.critical("keyboard inturrupt recieved terminating the program...",info)
+            break
+    thread.join()
+
+def worker(arg):
+    while not arg['stop']:
+        logging.debug('Hi from worker function')
+        cmd_args = {'cmd' : 'ping -c 4 python.org'}
+        execute_command(cmd_args)
+        time.sleep(0.5)
+
+def execute_command(arg):
+
+    #cmd = arg['cmd']
+	process = subprocess.Popen(
+		['ping', '-c 4', 'python.org'], 
+		stdout=subprocess.PIPE,
+		universal_newlines=True)
+
+	while True:
+		#output = process.stdout.readline()
+		#logging.info(output.strip())
+		# Do something else, grepping et.c....
+		return_code = process.poll()
+		if return_code is not None:
+			#logging.info('RETURN CODE:'+ return_code)
+			# Process has finished, read rest of the output 
+			for output in process.stdout.readlines():
+				logging.info(output.strip())
+			break
+
+if __name__ == '__main__':
+    setup_logging()
+    main()
