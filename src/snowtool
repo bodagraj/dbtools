@@ -7,7 +7,8 @@ from logging.handlers import RotatingFileHandler
 import os
 import subprocess
 import tempfile
-
+import pprint
+import json
 
 
 #print("Number of processors: ", mp.cpu_count())
@@ -58,7 +59,10 @@ def main():
 def worker(arg):
 	while not arg['stop']:
 		logging.debug('Hi from worker function')
-		cmd_args = {'cmd' : 'ping -c 4 python.org'}
+		cmd_args = {
+					'cmd' : 'ping',
+					'args' : 'python.org'
+					}
 		execute_command(cmd_args)
 		time.sleep(0.5)
 
@@ -67,23 +71,54 @@ def connect_teradata():
 
 def execute_command(arg):
 
-	#cmd = arg['cmd']
-	process = subprocess.Popen(
-		['ping', '-c 4', 'python.org'], 
-		stdout=subprocess.PIPE,
-		universal_newlines=True)
-
+	"""
+	Takes command and arguments in a dictionary and returns the status back
+	"""
+	cmd = arg['cmd']
+	args = arg['args']
+	#my_arg = pprint.pformat(arg)
+	json_string = json.dumps(arg)
+	logging.debug("Executing with the following arguments:\n"+json_string)
+	
+	out = ''
+	err = ''
+	return_code = -1
+	
+	try:
+		process = subprocess.Popen(
+			[cmd, args], 
+			stdout=subprocess.PIPE,
+			universal_newlines=True
+		)
+	except Exception as e:
+		logging.critical('Command failed, exception returned:'+format(e))
+		err = "".join(process.stderr.readlines())
+	
+	return_code = process.poll()
+	
 	while True:
 		#output = process.stdout.readline()
 		#logging.info(output.strip())
 		# Do something else, grepping et.c....
 		return_code = process.poll()
+		
 		if return_code is not None:
-			#logging.info('RETURN CODE:'+ return_code)
-			# Process has finished, read rest of the output 
-			for output in process.stdout.readlines():
-				logging.info(output.strip())
+			logging.info('RETURN CODE:'+ str(return_code))
+			# Process has finished, read rest of the output
+			out = "".join(process.stdout.readlines())
+			logging.info("Command returned\n"+out)
+			#for output in out:
+			#	logging.info(output.strip())
+			
+			if return_code != 0:
+				logging.critical('Command failed, please check messages above')
+			
 			break
+	
+	return {
+		'output' : out+"\n"+err,
+		'return_code' : return_code
+	}
 
 if __name__ == '__main__':
 	setup_logging()
