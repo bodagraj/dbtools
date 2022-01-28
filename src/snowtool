@@ -9,6 +9,8 @@ import subprocess
 import tempfile
 import pprint
 import json
+import sys
+
 
 
 #print("Number of processors: ", mp.cpu_count())
@@ -45,25 +47,33 @@ def main():
 	thread.start()
 	
 		
-	while True:
-		try:
-			logging.debug('Hello from main')
-			time.sleep(0.75)
-			
-		except KeyboardInterrupt:
-			info['stop'] = True
-			logging.critical("keyboard inturrupt recieved terminating the program...",info)
-			break
+	try:
+		logging.debug('Hello from main')
+		time.sleep(0.75)
+		
+	except KeyboardInterrupt:
+		info['stop'] = True
+		logging.critical("keyboard inturrupt recieved terminating the program...",info)
+		
 	thread.join()
 
 def worker(arg):
 	while not arg['stop']:
 		logging.debug('Hi from worker function')
 		cmd_args = {
-					'cmd' : 'ping',
+					'cmd' : 'ping1',
 					'args' : 'python.org'
 					}
-		execute_command(cmd_args)
+		
+		status = None
+		try:
+			status = execute_command(cmd_args)
+		except Exception as ex:
+			json_string = json.dumps(status)
+			logging.critical(ex)
+			logging.critical(json_string+"\nThread failure, exiting...")
+			sys.exit()
+		
 		time.sleep(0.5)
 
 def connect_teradata():
@@ -83,6 +93,7 @@ def execute_command(arg):
 	out = ''
 	err = ''
 	return_code = -1
+	process = None
 	
 	try:
 		process = subprocess.Popen(
@@ -90,11 +101,21 @@ def execute_command(arg):
 			stdout=subprocess.PIPE,
 			universal_newlines=True
 		)
-	except Exception as e:
-		logging.critical('Command failed, exception returned:'+format(e))
-		err = "".join(process.stderr.readlines())
+	except FileNotFoundError as e:
+		#err = "".join(process.stderr.readlines())
+		err = 'Command failed, exception returned:'+format(e)+',exiting....'
+		logging.critical(err)
+		#sys.exit()
+	except:
+		logging.critical("Error, Exception not handled , exiting...")
+		#sys.exit()
 	
-	return_code = process.poll()
+	if process is not None:
+		return_code = process.poll()
+	else:
+		logging.critical('processing failed, preparing to exit...')
+		sys.exit(-1)
+		
 	
 	while True:
 		#output = process.stdout.readline()
