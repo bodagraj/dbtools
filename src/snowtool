@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-import multiprocessing as mp
+#import multiprocessing as mp
 import logging
 import threading
 import time
@@ -10,13 +10,13 @@ import tempfile
 import pprint
 import json
 import sys
-
+import argparse
 
 
 #print("Number of processors: ", mp.cpu_count())
 
 
-def setup_logging():
+def setup_logging(arg):
 	
 	"""
 	Setup a default log file to /tmp/filename.log
@@ -36,7 +36,7 @@ def setup_logging():
 	print("check detailed progress in [",fname,"] hit cntrl+c to terminate the program")
 
 		
-def main():
+def main(arg):
 
 	"""
 	Multi threaded program it uses multithreading rater than multiprocessing, as the logic of this progra is not compute intesnive.
@@ -58,25 +58,25 @@ def main():
 	thread.join()
 
 def worker(arg):
-	while not arg['stop']:
-		logging.debug('Hi from worker function')
-		cmd_args = {
-					'cmd' : 'ping1',
-					'args' : 'python.org'
-					}
-		
-		status = None
-		try:
-			status = execute_command(cmd_args)
-		except Exception as ex:
-			json_string = json.dumps(status)
-			logging.critical(ex)
-			logging.critical(json_string+"\nThread failure, exiting...")
-			sys.exit()
-		
-		time.sleep(0.5)
+	
+	logging.debug('Hi from worker function')
+	cmd_args = {
+				'cmd' : 'ping',
+				'args' : 'python.org'
+				}
+	
+	status = None
+	try:
+		status = execute_command(cmd_args)
+	except Exception as ex:
+		json_string = json.dumps(status)
+		logging.critical(ex)
+		logging.critical(json_string+"\nThread failure, exiting...")
+		sys.exit()
+	
+	time.sleep(0.5)
 
-def connect_teradata():
+def connect_teradata(arg):
 	return dbh
 
 def execute_command(arg):
@@ -141,6 +141,22 @@ def execute_command(arg):
 		'return_code' : return_code
 	}
 
+def parse_inputs():
+	parser = argparse.ArgumentParser(
+		description='Tool to load data from teradata to snowflake using multithreading')
+
+	parser.add_argument('-p', action='store', type=str, required=True,
+		help='Total number of threads to process the logic')
+	parser.add_argument('-s', action='store', type=str, required=True,
+		help='source database name')
+	parser.add_argument('-t', action='store', type=str, required=True,
+		help='target database name')
+	parser.add_argument('-c', action='store', type=str, required=False,
+		help='Config file path')
+		
+	return parser.parse_args()
+
 if __name__ == '__main__':
-	setup_logging()
-	main()
+	input_args = parse_inputs()
+	setup_logging(input_args)
+	main(input_args)
