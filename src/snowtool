@@ -14,6 +14,8 @@ import sys
 import argparse
 import teradatasql
 import pandas as pd
+import sqlalchemy
+import warnings
 
 
 
@@ -95,19 +97,62 @@ def handle_copy_data(arg):
 def process_source(arg):
 	my_arg = pprint.pformat(arg)
 	logging.info("input arguments are : \n"+my_arg)
-	logging.debug('connecting to source:'+arg['source']['dbname'])
+	logging.debug('connecting to source:'+arg['source']['dbhost'])
 	connect = teradata_connect(arg['source'])
+	source_db = arg['source']['dbname']
 	#Reading query to df
-	query = "select DatabaseName,TableName,TableKind from dbc.tables where DatabaseName='FDW_CORE'"
-	df = pd.read_sql(query,connect)
-	print(df)
+	tab_args = {
+		"sql" : f"""
+			select
+				trim(t.DatabaseName) as DatabaseName,
+				trim(t.TableName) as TableName,
+				trim(t.TableKind) as TableKind,
+				trim(c.ColumnName) as ColumnName,
+				trim(c.ColumnType) as ColumnType,
+				trim(c.ColumnLength) as ColumnLength,
+				trim(Nullable) as Nullable,
+				trim(DecimalTotalDigits) DecimalTotalDigits,
+				trim(DecimalFractionalDigits) DecimalFractionalDigits,
+				trim(ColumnId) ColumnId
+			from
+				dbc.tables t inner join dbc.columns c on t.TableName=c.TableName and t.DatabaseName=c.DatabaseName
+			where t.DatabaseName='{source_db}'
+			""",
+		"connect" : connect
+	}
+	table_dic = teradata_get_table_details(tab_args)
+	print(table_dic)
+	
 	
 	status = ''
 	return status
 
+def teradata_get_table_details(arg):
+	table_dic = {}
+	df = None
+	query = arg['sql']
+	connect = arg['connect']
+	
+	logging.debug('executing query:'+query)
+	try:
+		warnings.filterwarnings("ignore")
+		df = pd.read_sql(query,connect)
+	except Exception as e:
+		logging.critical(e)
+		sys.exit(-1)
+	
+	df = df.reset_index()  # make sure indexes pair with number of rows
+	for index, row in df.iterrows():
+		table_name = row['DatabaseName']+'.'+row['TableName']
+		table_kind = row['TableKind']
+		table_dic[table_name] = {'table_kind' : table_kind}
+	
+	return table_dic
+	
+	
 def teradata_connect(arg):
 	
-	dbhost = arg['dbname']
+	dbhost = arg['dbhost']
 	dbuser = arg['user']
 	dbpass = arg['password']
 	
