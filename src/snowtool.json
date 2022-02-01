@@ -1,0 +1,17 @@
+{
+	"action" : {
+		"copy_data" : {
+			"parallel_readers":"2",
+			"parallel_splitters": "4",
+			"parallel_writers":"2",
+			"source" : {
+				"dbname": "vantage",
+				"user": "sysdba",
+				"password": "sysdba"
+			},
+			"target" : {
+				"dbname":"aws-sf"
+			}
+		}
+	}
+}
