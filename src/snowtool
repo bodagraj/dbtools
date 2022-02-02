@@ -99,53 +99,197 @@ def process_source(arg):
 	logging.info("input arguments are : \n"+my_arg)
 	logging.debug('connecting to source:'+arg['source']['dbhost'])
 	connect = teradata_connect(arg['source'])
-	source_db = arg['source']['dbname']
-	#Reading query to df
-	tab_args = {
-		"sql" : f"""
-			select
-				trim(t.DatabaseName) as DatabaseName,
-				trim(t.TableName) as TableName,
-				trim(t.TableKind) as TableKind,
-				trim(c.ColumnName) as ColumnName,
-				trim(c.ColumnType) as ColumnType,
-				trim(c.ColumnLength) as ColumnLength,
-				trim(Nullable) as Nullable,
-				trim(DecimalTotalDigits) DecimalTotalDigits,
-				trim(DecimalFractionalDigits) DecimalFractionalDigits,
-				trim(ColumnId) ColumnId
-			from
-				dbc.tables t inner join dbc.columns c on t.TableName=c.TableName and t.DatabaseName=c.DatabaseName
-			where t.DatabaseName='{source_db}'
-			""",
-		"connect" : connect
-	}
-	table_dic = teradata_get_table_details(tab_args)
-	print(table_dic)
+	arg['source']['connect'] = connect
+
+	
+	table_dic = teradata_get_table_details(arg['source'])
+	table_details = pprint.pformat(table_dic)
+	logging.info("Table Details are : \n"+table_details)
+	#print(table_details)
+	
+	fexp_cmd = teradata_get_fexp_command({'table_dic' : table_dic,'inputs' : arg})
+	my_pretty = pprint.pformat(fexp_cmd)
+	logging.debug(" * Teradata Fast Export commands: "+my_pretty)
 	
 	
 	status = ''
 	return status
 
+def teradata_get_fexp_command(arg):
+	table_dic = arg['table_dic']
+	args = arg['inputs'] 
+	
+	dbuser = args['source']['user']
+	dbpass = args['source']['password']
+	dbhost = args['source']['dbhost']
+	export_dir = args['export_dir']
+	
+	fexp_command = None
+	fexp_commands = {}
+	for table in table_dic:
+		sql = f"""select * from {table}"""
+		col_list = []
+		for colid in sorted(table_dic[table].keys()):
+			name = table_dic[table][colid]['ColumnName']
+			type = table_dic[table][colid]['ColumnType']
+			size = table_dic[table][colid]['ColumnLength']
+			str = f"""{name} {type}({size})"""
+			col_list.append(str)
+		
+		name_type_size_all = "\n\t,".join(col_list)
+		name_type_size_all = "\n\t"+name_type_size_all
+		#print(name_type_size_all)
+		fexp_command = f"""
+DEFINE JOB EXPORT_{table}_DATA
+DESCRIPTION 'Exports {table} data to a formatted file using EXPORT'
+(
+    DEFINE OPERATOR Consumer_File_Detail
+    DESCRIPTION 'Defining a consumer operator for storing retrieved data to a file'
+    TYPE DATACONNECTOR CONSUMER
+    SCHEMA *
+    ATTRIBUTES
+    (
+        VARCHAR DirectoryPath='{export_dir}',
+        VARCHAR FileName='{table}.out',
+        VARCHAR FORMAT= 'DELIMITED',
+        VARCHAR OpenMode='Write',
+        VARCHAR TextDelimiter='|~|'
+    );
+    
+    DEFINE SCHEMA Define_{table}_Schema
+    DESCRIPTION 'Defining a Schema to describe the structure of the output file'
+    (
+		{name_type_size_all}
+    );
+    
+    DEFINE OPERATOR Producer_Query_Detail
+    TYPE EXPORT
+    SCHEMA Define_{table}_Schema
+    ATTRIBUTES
+    (
+       VARCHAR UserName='{dbuser}',
+       VARCHAR UserPAssword='{dbpass}',
+       VARCHAR SelectStmt = '{sql};',
+       VARCHAR Tdpid='{dbhost}',
+       INTEGER MaxSessions=6,
+       INTEGER minsessions=2,
+       INTEGER TenacityHours=2,
+       INTEGER TenacitySleep=10
+    );
+    
+    APPLY 
+    TO OPERATOR( Consumer_File_Detail )
+    SELECT * FROM OPERATOR( Producer_Query_Detail[2] );
+);
+"""
+		fexp_file = f"""{export_dir}/{table}.fexp"""
+		logging.debug("Fast export file : "+fexp_file)
+		try:
+			with open(fexp_file, 'w') as f:
+				f.write(fexp_command)
+				logging.debug(fexp_command)
+		except Exception as e:
+			logging.critical('Failed to create fast export file'+e)
+		print(" * Fast Export File : ",fexp_file)
+		fexp_commands[table] = fexp_file
+	
+	return fexp_commands
+
 def teradata_get_table_details(arg):
-	table_dic = {}
-	df = None
-	query = arg['sql']
+
+	db = arg['dbname']
 	connect = arg['connect']
 	
-	logging.debug('executing query:'+query)
+	sql = f"""
+		select
+			trim(t.DatabaseName) as DatabaseName,
+			trim(t.TableName) as TableName,
+			trim(t.TableKind) as TableKind,
+			trim(c.ColumnName) as ColumnName,
+			case 
+				when trim(c.ColumnType) = 'AT' then 'time'
+				when trim(c.ColumnType) = 'BF' then 'byte'
+				when trim(c.ColumnType) = 'BO' then 'blob'
+				when trim(c.ColumnType) = 'BV' then 'varbyte'
+				when trim(c.ColumnType) = 'CF' then 'char'
+				when trim(c.ColumnType) = 'CV' then 'varchar'
+				when trim(c.ColumnType) = 'D' then 'decimal'
+				when trim(c.ColumnType) = 'DA' then 'date'
+				when trim(c.ColumnType) = 'DH' then 'interval day to hour'
+				when trim(c.ColumnType) = 'DM' then 'interval day to minute'
+				when trim(c.ColumnType) = 'DS' then 'interval day to second'
+				when trim(c.ColumnType) = 'DY' then 'interval day'
+				when trim(c.ColumnType) = 'F' then 'float'
+				when trim(c.ColumnType) = 'HM' then 'interval hour to minute'
+				when trim(c.ColumnType) = 'HR' then 'interval hour'
+				when trim(c.ColumnType) = 'HS' then 'interval hour to second'
+				when trim(c.ColumnType) = 'I' then 'integer'
+				when trim(c.ColumnType) = 'I1' then 'byteint'
+				when trim(c.ColumnType) = 'I2' then 'smallint'
+				when trim(c.ColumnType) = 'I8' then 'bigint'
+				when trim(c.ColumnType) = 'MI' then 'interval minute'
+				when trim(c.ColumnType) = 'MO' then 'interval month'
+				when trim(c.ColumnType) = 'MS' then 'interval minute to second'
+				when trim(c.ColumnType) = 'TS' then 'timestamp'
+				when trim(c.ColumnType) = 'SZ' then 'timestamp with time zone'
+				when trim(c.ColumnType) = 'TZ' then 'time with time zone'
+				when trim(c.ColumnType) = 'YM' then 'interval year to month'
+				when trim(c.ColumnType) = 'YR' then 'interval year'
+				when trim(c.ColumnType) = 'PM' then 'temporal'
+			end as ColumnType,
+			trim(c.ColumnLength) as ColumnLength,
+			trim(c.Nullable) as Nullable,
+			trim(c.DecimalTotalDigits) DecimalTotalDigits,
+			trim(c.DecimalFractionalDigits) DecimalFractionalDigits,
+			cast(trim(c.ColumnId) as integer) ColumnId
+		from
+			dbc.tables t inner join dbc.columns c on t.TableName=c.TableName and t.DatabaseName=c.DatabaseName
+		where t.DatabaseName='{db}'
+		order by t.DatabaseName,t.TableName,c.ColumnId
+		"""
+	
+	table_dic = {}
+	df = None
+	logging.debug('executing query:'+sql)
 	try:
 		warnings.filterwarnings("ignore")
-		df = pd.read_sql(query,connect)
+		df = pd.read_sql(sql,connect)
 	except Exception as e:
 		logging.critical(e)
 		sys.exit(-1)
 	
 	df = df.reset_index()  # make sure indexes pair with number of rows
+	
 	for index, row in df.iterrows():
 		table_name = row['DatabaseName']+'.'+row['TableName']
-		table_kind = row['TableKind']
-		table_dic[table_name] = {'table_kind' : table_kind}
+		col_id = row['ColumnId']
+		col_details = {
+				'DatabaseName' : row['DatabaseName'],
+				'TableName' : row['TableName'],
+				'TableKind' : row['TableKind'],
+				'ColumnName' : row['ColumnName'],
+				'ColumnType' : row['ColumnType'],
+				'ColumnLength' : row['ColumnLength'],
+				'Nullable' : row['Nullable'],
+				'DecimalTotalDigits' : row['DecimalTotalDigits'],
+				'DecimalFractionalDigits' : row['DecimalFractionalDigits'],
+				'ColumnId' : row['ColumnId']
+		}
+		cold = {col_id : col_details}
+		
+		try:
+			#table_dic[table_name][col_id].append(col_details)
+			table_dic[table_name][col_id] = col_details
+		except Exception as e:
+			### if its new column then initialise new column only
+			if table_name in table_dic.keys() and col_id not in table_dic[table_name].keys():
+				table_dic[table_name][col_id] = {}
+				table_dic[table_name][col_id] = col_details
+			else:
+				### if its new then initialise and add
+				table_dic[table_name] = {}
+				table_dic[table_name][col_id] = {}
+				table_dic[table_name][col_id] = col_details
 	
 	return table_dic
 	
