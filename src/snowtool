@@ -126,22 +126,33 @@ def teradata_get_fexp_command(arg):
 	
 	fexp_command = None
 	fexp_commands = {}
+	
 	for table in table_dic:
-		sql = f"""select * from {table}"""
+		
 		col_list = []
+		select_col_list = []
 		for colid in sorted(table_dic[table].keys()):
 			name = table_dic[table][colid]['ColumnName']
 			type = table_dic[table][colid]['ColumnType']
 			size = table_dic[table][colid]['ColumnLength']
-			str = f"""{name} {type}({size})"""
-			col_list.append(str)
+			tb = table_dic[table][colid]['TableName']
+			external_datatype_with_size = table_dic[table][colid]['ExternalDatatypeSize']
+		
+			select_col = f""" "{name}" {external_datatype_with_size}"""
+			exp_select_col = f"""cast("{name}" as {external_datatype_with_size})"""
+			
+			select_col_list.append(exp_select_col)
+			col_list.append(select_col)
 		
 		name_type_size_all = "\n\t,".join(col_list)
 		name_type_size_all = "\n\t"+name_type_size_all
+		exp_select_col_list = ",".join(select_col_list)
+		sql = f"""select {exp_select_col_list} from {table}"""
+		
 		#print(name_type_size_all)
 		fexp_command = f"""
-DEFINE JOB EXPORT_{table}_DATA
-DESCRIPTION 'Exports {table} data to a formatted file using EXPORT'
+DEFINE JOB EXPORT_{tb}_DATA
+DESCRIPTION 'Exports {tb} data to a formatted file using EXPORT'
 (
     DEFINE OPERATOR Consumer_File_Detail
     DESCRIPTION 'Defining a consumer operator for storing retrieved data to a file'
@@ -150,13 +161,13 @@ DESCRIPTION 'Exports {table} data to a formatted file using EXPORT'
     ATTRIBUTES
     (
         VARCHAR DirectoryPath='{export_dir}',
-        VARCHAR FileName='{table}.out',
+        VARCHAR FileName='{tb}.out',
         VARCHAR FORMAT= 'DELIMITED',
         VARCHAR OpenMode='Write',
         VARCHAR TextDelimiter='|~|'
     );
     
-    DEFINE SCHEMA Define_{table}_Schema
+    DEFINE SCHEMA Define_{tb}_Schema
     DESCRIPTION 'Defining a Schema to describe the structure of the output file'
     (
 		{name_type_size_all}
@@ -164,7 +175,7 @@ DESCRIPTION 'Exports {table} data to a formatted file using EXPORT'
     
     DEFINE OPERATOR Producer_Query_Detail
     TYPE EXPORT
-    SCHEMA Define_{table}_Schema
+    SCHEMA Define_{tb}_Schema
     ATTRIBUTES
     (
        VARCHAR UserName='{dbuser}',
@@ -184,6 +195,7 @@ DESCRIPTION 'Exports {table} data to a formatted file using EXPORT'
 """
 		fexp_file = f"""{export_dir}/{table}.fexp"""
 		logging.debug("Fast export file : "+fexp_file)
+		logging.debug("Fast Export Command : "+fexp_command)
 		try:
 			with open(fexp_file, 'w') as f:
 				f.write(fexp_command)
@@ -206,6 +218,37 @@ def teradata_get_table_details(arg):
 			trim(t.TableName) as TableName,
 			trim(t.TableKind) as TableKind,
 			trim(c.ColumnName) as ColumnName,
+			case 
+				when trim(c.ColumnType) = 'AT' then 'varchar(15)'
+				when trim(c.ColumnType) = 'BF' then 'varchar'||trim(c.ColumnLength)||')'
+				when trim(c.ColumnType) = 'BO' then 'varchar('||trim(c.ColumnLength)||')'
+				when trim(c.ColumnType) = 'BV' then 'varchar'||trim(c.ColumnLength)||')'
+				when trim(c.ColumnType) = 'D' then 'varchar('||trim(DecimalTotalDigits+DecimalFractionalDigits)||')'
+				when trim(c.ColumnType) = 'CF' then 'varchar('||trim(c.ColumnLength)||')'
+				when trim(c.ColumnType) = 'CV' then 'varchar('||trim(c.ColumnLength)||')'
+				when trim(c.ColumnType) = 'DA' then 'varchar(10)'
+				when trim(c.ColumnType) = 'DH' then 'varchar(8)'
+				when trim(c.ColumnType) = 'DM' then 'varchar(11)'
+				when trim(c.ColumnType) = 'DS' then 'varchar(21)'
+				when trim(c.ColumnType) = 'DY' then 'varchar(10)'
+				when trim(c.ColumnType) = 'F' then 'varchar(20)'
+				when trim(c.ColumnType) = 'HM' then 'varchar(8)'
+				when trim(c.ColumnType) = 'HR' then 'varchar(8)'
+				when trim(c.ColumnType) = 'HS' then 'varchar(18)'
+				when trim(c.ColumnType) = 'I' then 'varchar(10)'
+				when trim(c.ColumnType) = 'I1' then 'varchar(3)'
+				when trim(c.ColumnType) = 'I2' then 'varchar(6)'
+				when trim(c.ColumnType) = 'I8' then 'varchar(20)'
+				when trim(c.ColumnType) = 'MI' then 'varchar(5)'
+				when trim(c.ColumnType) = 'MO' then 'varchar(5)'
+				when trim(c.ColumnType) = 'MS' then 'varchar(15)'
+				when trim(c.ColumnType) = 'TS' then 'varchar(26)'
+				when trim(c.ColumnType) = 'SZ' then 'varchar(32)'
+				when trim(c.ColumnType) = 'TZ' then 'varchar(32)'
+				when trim(c.ColumnType) = 'YM' then 'varchar(8)'
+				when trim(c.ColumnType) = 'YR' then 'varchar(5)'
+				when trim(c.ColumnType) = 'PM' then 'varchar(32)'
+			end as ExternalDatatypeSize,
 			case 
 				when trim(c.ColumnType) = 'AT' then 'time'
 				when trim(c.ColumnType) = 'BF' then 'byte'
@@ -273,7 +316,8 @@ def teradata_get_table_details(arg):
 				'Nullable' : row['Nullable'],
 				'DecimalTotalDigits' : row['DecimalTotalDigits'],
 				'DecimalFractionalDigits' : row['DecimalFractionalDigits'],
-				'ColumnId' : row['ColumnId']
+				'ColumnId' : row['ColumnId'],
+				'ExternalDatatypeSize' : row['ExternalDatatypeSize']
 		}
 		cold = {col_id : col_details}
 		
