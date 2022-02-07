@@ -17,10 +17,9 @@
 				"bucket" : "bucket.bodagraj"
 			},
 			"target" : {
-				"vendor" : "snowflake"
-				"account":"ZG50511.us-east-2.aws"
+				"vendor" : "snowflake",
+				"account":"ZG50511.us-east-2.aws",
 				"user" : "user1"
-
 			}
 		}
 	}
