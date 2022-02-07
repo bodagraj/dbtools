@@ -91,9 +91,41 @@ def handle_copy_data(arg):
 	thread_source.start()
 	threads.append(thread_source)
 	
+	### copy to s3 staging area
+	thread_s3_copy = threading.Thread(target=copy_to_s3, args=(arg,))
+	thread_s3_copy.start()
+	threads.append(thread_s3_copy)
+	
+	
 	# join all threads
 	for t in threads:
 		t.join()
+
+def copy_to_s3(arg):
+	my_arg = pprint.pformat(arg)
+	logging.info("input arguments are : \n"+my_arg)
+"""	
+	for source_file in source_files:
+		
+	while True:
+		
+		return_code = is_file_ready()
+		
+		if return_code is not None:
+			logging.info('RETURN CODE:'+ str(return_code))
+			# Process has finished, read rest of the output
+			out = "".join(process.stdout.readlines())
+			err = "".join(process.stderr.readlines())
+			logging.info("Command returned\n"+"\nout ==> "+out)
+			if err != '':
+				logging.info("Command returned\n"+"\nerr ==> "+err)
+				print("ERROR ==> "+err)
+			
+			if return_code != 0:
+				logging.critical('Command failed, please check messages above')
+			
+			break
+"""
 
 def teradata_export(arg):
 	my_arg = pprint.pformat(arg)

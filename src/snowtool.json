@@ -8,13 +8,19 @@
 			"delimiter" : "~",
 			"source" : {
 				"dbhost": "vantage",
-				"user": "sysdba",
-				"password": "sysdba",
+				"user": "dbc",
+				"password": "dbc",
 				"dbname" : "FDW_CORE",
 				"vendor" : "teradata"
 			},
+			"s3_staging" : {
+				"bucket" : "bucket.bodagraj"
+			},
 			"target" : {
-				"dbname":"aws-sf"
+				"vendor" : "snowflake"
+				"account":"ZG50511.us-east-2.aws"
+				"user" : "user1"
+
 			}
 		}
 	}
