@@ -3,8 +3,9 @@
 		"copy_data" : {
 			"parallel_readers":"2",
 			"parallel_splitters": "4",
-			"parallel_writers":"2",
+			"parallel_writers":"1",
 			"export_dir" : "/tmp/migration",
+			"delimiter" : "~",
 			"source" : {
 				"dbhost": "vantage",
 				"user": "sysdba",

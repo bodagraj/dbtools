@@ -16,6 +16,7 @@ import teradatasql
 import pandas as pd
 import sqlalchemy
 import warnings
+import re
 
 
 
@@ -86,7 +87,7 @@ def handle_copy_data(arg):
 	threads.append(thread)
 	
 	### process source
-	thread_source = threading.Thread(target=process_source, args=(arg,))
+	thread_source = threading.Thread(target=teradata_export, args=(arg,))
 	thread_source.start()
 	threads.append(thread_source)
 	
@@ -94,7 +95,7 @@ def handle_copy_data(arg):
 	for t in threads:
 		t.join()
 
-def process_source(arg):
+def teradata_export(arg):
 	my_arg = pprint.pformat(arg)
 	logging.info("input arguments are : \n"+my_arg)
 	logging.debug('connecting to source:'+arg['source']['dbhost'])
@@ -111,8 +112,69 @@ def process_source(arg):
 	my_pretty = pprint.pformat(fexp_cmd)
 	logging.debug(" * Teradata Fast Export commands: "+my_pretty)
 	
+	### sequential for now
+	export_status = teradata_execute_export(fexp_cmd)
+	my_arg = pprint.pformat(export_status)
+	logging.info("Export Status : \n"+my_arg)
+	return export_status
+
+def teradata_execute_export(arg):
 	
-	status = ''
+	for table in arg:
+		cmd_args = { 'cmd' : 'tbuild'+' -f '+arg[table] + ' -C ' }
+		
+		print(f""" * Exporting table {table}...""")
+		stats = execute_command(cmd_args)
+		status = {}
+		return_code = stats['return_code']
+		output = stats['output']
+		
+		### export status
+		export_status = 'unknown'
+		exported_rows = None
+		discarded_rows = None
+		for m in re.finditer(r"\bJob\sstep\sMAIN_STEP\scompleted\ssuccessfully\b", output):
+			if m.group(0):
+				export_status = m.group(0)
+				logging.debug('Export status for table '+table+':'+export_status)
+				export_status = 'ok'
+			else:
+				export_status = 'not_ok'
+				msg = " * Export Failed for table : "+table+', Please check logs for more details'
+				print(msg)
+				logging.critical(msg)
+				sys.exit(-1)
+		### export rows
+		for m in re.finditer(r"\s+Total\s+Rows\s+Exported\:\s+(\d+)", output):
+			if m.group(0):
+				exported_rows = m.group(1)
+				logging.debug('Exported rows for table '+table+':'+exported_rows)
+				
+			else:
+				export_status = 'not_ok'
+				msg = " * Export Failed for table : "+table+', Please check logs for more details'
+				print(msg)
+				logging.critical(msg)
+				sys.exit(-1)
+		### discarded_rows
+		for m in re.finditer(r"\s+Total\s+Rows\s+Discarded\:\s(\d+)", output):
+			if m.group(0):
+				discarded_rows = m.group(1)
+				logging.debug('Discarded rows for table '+table+':'+discarded_rows)
+			else:
+				msg = " * Export Failed for table : "+table+', Please check logs for more details'
+				print(msg)
+				logging.critical(msg)
+				sys.exit(-1)
+		
+		print(f""" * Export status [{export_status}], Exported rows for table {table} : [{exported_rows}]""")
+		status[table] = {
+			'return_code' : return_code,
+			'export_status' : export_status,
+			'exported_rows' : exported_rows,
+			'discarded_rows' : discarded_rows
+		}
+		
 	return status
 
 def teradata_get_fexp_command(arg):
@@ -123,6 +185,9 @@ def teradata_get_fexp_command(arg):
 	dbpass = args['source']['password']
 	dbhost = args['source']['dbhost']
 	export_dir = args['export_dir']
+	delimiter = args['delimiter']
+	parallel_writers = args['parallel_writers']
+	parallel_readers = args['parallel_readers']
 	
 	fexp_command = None
 	fexp_commands = {}
@@ -161,10 +226,10 @@ DESCRIPTION 'Exports {tb} data to a formatted file using EXPORT'
     ATTRIBUTES
     (
         VARCHAR DirectoryPath='{export_dir}',
-        VARCHAR FileName='{tb}.out',
+        VARCHAR FileName='{tb}.out.gz',
         VARCHAR FORMAT= 'DELIMITED',
         VARCHAR OpenMode='Write',
-        VARCHAR TextDelimiter='|~|'
+        VARCHAR TextDelimiter='{delimiter}'
     );
     
     DEFINE SCHEMA Define_{tb}_Schema
@@ -185,12 +250,13 @@ DESCRIPTION 'Exports {tb} data to a formatted file using EXPORT'
        INTEGER MaxSessions=6,
        INTEGER minsessions=2,
        INTEGER TenacityHours=2,
-       INTEGER TenacitySleep=10
+       INTEGER TenacitySleep=10,
+       VARCHAR QueryBandSessInfo='Action=TPT_EXPORT;Format=TEXT;Application=dbtool;'
+
     );
     
-    APPLY 
-    TO OPERATOR( Consumer_File_Detail )
-    SELECT * FROM OPERATOR( Producer_Query_Detail[2] );
+    APPLY TO OPERATOR( Consumer_File_Detail[{parallel_writers}] )
+    SELECT * FROM OPERATOR( Producer_Query_Detail[{parallel_readers}] );
 );
 """
 		fexp_file = f"""{export_dir}/{table}.fexp"""
@@ -201,8 +267,8 @@ DESCRIPTION 'Exports {tb} data to a formatted file using EXPORT'
 				f.write(fexp_command)
 				logging.debug(fexp_command)
 		except Exception as e:
-			logging.critical('Failed to create fast export file'+e)
-		print(" * Fast Export File : ",fexp_file)
+			logging.critical('Failed to create fast export file'+format(e))
+		#print(" * Fast Export File : ",fexp_file)
 		fexp_commands[table] = fexp_file
 	
 	return fexp_commands
@@ -434,6 +500,7 @@ def execute_command(arg):
 			err = "".join(process.stderr.readlines())
 			logging.info("Command returned\n"+"\nout ==> "+out)
 			if err != '':
+				logging.info("Command returned\n"+"\nerr ==> "+err)
 				print("ERROR ==> "+err)
 			
 			if return_code != 0:
