@@ -1,0 +1,248 @@
+bodagraj@ubuntu:~/bin$ snowsql -a 'ecb05415.us-east-1' -u bodagraj -o log_level=DEBUG
+Password:
+* SnowSQL * v1.2.21
+Type SQL statements or !help
+bodagraj#COMPUTE_WH@(no database).(no schema)>create database FDW_CORE;
+                                              create schema FDW;
+                                              create role ETL_ADMIN;
+
++-----------------------------------------+
+| status                                  |
+|-----------------------------------------|
+| Database FDW_CORE successfully created. |
++-----------------------------------------+
+1 Row(s) produced. Time Elapsed: 0.226s
++----------------------------------+
+| status                           |
+|----------------------------------|
+| Schema FDW successfully created. |
++----------------------------------+
+1 Row(s) produced. Time Elapsed: 0.155s
++--------------------------------------+
+| status                               |
+|--------------------------------------|
+| Role ETL_ADMIN successfully created. |
++--------------------------------------+
+1 Row(s) produced. Time Elapsed: 0.134s
+bodagraj#COMPUTE_WH@FDW_CORE.FDW>
+bodagraj#COMPUTE_WH@FDW_CORE.FDW>grant select on all tables in schema FDW_CORE.FDW to role ETL_ADMIN;
+                                 grant insert on all tables in schema FDW_CORE.FDW to role ETL_ADMIN;
+                                 grant update on all tables in schema FDW_CORE.FDW to role ETL_ADMIN;
+                                 grant delete on all tables in schema FDW_CORE.FDW to role ETL_ADMIN;
+                                 grant select,insert,update,delete on future tables  in schema FDW_CORE.FDW to role ETL_ADMIN;
+
++------------------------------------------------------+
+| status                                               |
+|------------------------------------------------------|
+| Statement executed successfully. 0 objects affected. |
++------------------------------------------------------+
+1 Row(s) produced. Time Elapsed: 0.130s
++------------------------------------------------------+
+| status                                               |
+|------------------------------------------------------|
+| Statement executed successfully. 0 objects affected. |
++------------------------------------------------------+
+1 Row(s) produced. Time Elapsed: 0.128s
++------------------------------------------------------+
+| status                                               |
+|------------------------------------------------------|
+| Statement executed successfully. 0 objects affected. |
++------------------------------------------------------+
+1 Row(s) produced. Time Elapsed: 0.120s
++------------------------------------------------------+
+| status                                               |
+|------------------------------------------------------|
+| Statement executed successfully. 0 objects affected. |
++------------------------------------------------------+
+1 Row(s) produced. Time Elapsed: 0.139s
++----------------------------------+
+| status                           |
+|----------------------------------|
+| Statement executed successfully. |
++----------------------------------+
+1 Row(s) produced. Time Elapsed: 0.167s
+bodagraj#COMPUTE_WH@FDW_CORE.FDW>grant create table ON ALL SCHEMAS IN DATABASE FDW_CORE to ETL_ADMIN;
+                                 grant usage on all schemas in database FDW_CORE to role etl_admin;
+                                 grant usage on future schemas in database FDW_CORE to role etl_admin;
+                                 grant usage on database FDW_CORE to role etl_admin;
+                                 grant usage on warehouse COMPUTE_WH to role etl_admin;
+
++------------------------------------------------------+
+| status                                               |
+|------------------------------------------------------|
+| Statement executed successfully. 2 objects affected. |
++------------------------------------------------------+
+1 Row(s) produced. Time Elapsed: 0.278s
++------------------------------------------------------+
+| status                                               |
+|------------------------------------------------------|
+| Statement executed successfully. 2 objects affected. |
++------------------------------------------------------+
+1 Row(s) produced. Time Elapsed: 0.162s
++----------------------------------+
+| status                           |
+|----------------------------------|
+| Statement executed successfully. |
++----------------------------------+
+1 Row(s) produced. Time Elapsed: 0.159s
++----------------------------------+
+| status                           |
+|----------------------------------|
+| Statement executed successfully. |
++----------------------------------+
+1 Row(s) produced. Time Elapsed: 0.135s
++----------------------------------+
+| status                           |
+|----------------------------------|
+| Statement executed successfully. |
++----------------------------------+
+1 Row(s) produced. Time Elapsed: 0.150s
+bodagraj#COMPUTE_WH@FDW_CORE.FDW>create user user1 password='xxx' default_role = ETL_ADMIN default_secondary_roles = ('ALL') must_change_password = true;
++----------------------------------+
+| status                           |
+|----------------------------------|
+| User USER1 successfully created. |
++----------------------------------+
+1 Row(s) produced. Time Elapsed: 0.394s
+bodagraj#COMPUTE_WH@FDW_CORE.FDW>grant role ETL_ADMIN to user USER1;
+                                 grant role ETL_ADMIN to user BODAGRAJ;
+
++----------------------------------+
+| status                           |
+|----------------------------------|
+| Statement executed successfully. |
++----------------------------------+
+1 Row(s) produced. Time Elapsed: 0.133s
++----------------------------------+
+| status                           |
+|----------------------------------|
+| Statement executed successfully. |
++----------------------------------+
+1 Row(s) produced. Time Elapsed: 0.137s
+bodagraj#COMPUTE_WH@FDW_CORE.FDW>show grants to role etl_admin;
++-------------------------------+--------------+------------+-----------------+------------+--------------+--------------+--------------+
+| created_on                    | privilege    | granted_on | name            | granted_to | grantee_name | grant_option | granted_by   |
+|-------------------------------+--------------+------------+-----------------+------------+--------------+--------------+--------------|
+| 2022-04-27 18:21:16.967 -0700 | USAGE        | DATABASE   | FDW_CORE        | ROLE       | ETL_ADMIN    | false        | ACCOUNTADMIN |
+| 2022-04-27 18:21:16.406 -0700 | CREATE TABLE | SCHEMA     | FDW_CORE.FDW    | ROLE       | ETL_ADMIN    | false        | ACCOUNTADMIN |
+| 2022-04-27 18:21:16.663 -0700 | USAGE        | SCHEMA     | FDW_CORE.FDW    | ROLE       | ETL_ADMIN    | false        | ACCOUNTADMIN |
+| 2022-04-27 18:21:16.429 -0700 | CREATE TABLE | SCHEMA     | FDW_CORE.PUBLIC | ROLE       | ETL_ADMIN    | false        | ACCOUNTADMIN |
+| 2022-04-27 18:21:16.674 -0700 | USAGE        | SCHEMA     | FDW_CORE.PUBLIC | ROLE       | ETL_ADMIN    | false        | ACCOUNTADMIN |
+| 2022-04-27 18:21:17.113 -0700 | USAGE        | WAREHOUSE  | COMPUTE_WH      | ROLE       | ETL_ADMIN    | false        | SYSADMIN     |
++-------------------------------+--------------+------------+-----------------+------------+--------------+--------------+--------------+
+6 Row(s) produced. Time Elapsed: 0.239s
+bodagraj#COMPUTE_WH@FDW_CORE.FDW>CREATE STORAGE INTEGRATION s3_int
+                                   TYPE = EXTERNAL_STAGE
+                                   STORAGE_PROVIDER = S3
+                                   ENABLED = TRUE
+                                   STORAGE_AWS_ROLE_ARN = 'arn:aws:iam::463006683867:role/mysnowflakerole'
+                                   storage_allowed_locations = ('s3://bucket.bodagraj/source/')
+                                   storage_blocked_locations = ('s3://bucket.bodagraj/pii')
+                                 ;
+
++------------------------------------------+
+| status                                   |
+|------------------------------------------|
+| Integration S3_INT successfully created. |
++------------------------------------------+
+1 Row(s) produced. Time Elapsed: 1.171s
+bodagraj#COMPUTE_WH@FDW_CORE.FDW>DESCRIBE INTEGRATION S3_INT;
++---------------------------+---------------+-------------------------------------------------+------------------+
+| property                  | property_type | property_value                                  | property_default |
+|---------------------------+---------------+-------------------------------------------------+------------------|
+| ENABLED                   | Boolean       | true                                            | false            |
+| STORAGE_PROVIDER          | String        | S3                                              |                  |
+| STORAGE_ALLOWED_LOCATIONS | List          | s3://bucket.bodagraj/source/                    | []               |
+| STORAGE_BLOCKED_LOCATIONS | List          | s3://bucket.bodagraj/pii                        | []               |
+| STORAGE_AWS_IAM_USER_ARN  | String        | arn:aws:iam::208001125018:user/37h00000-s       |                  |
+| STORAGE_AWS_ROLE_ARN      | String        | arn:aws:iam::463006683867:role/mysnowflakerole  |                  |
+| STORAGE_AWS_EXTERNAL_ID   | String        | ECB05415_SFCRole=3_RFL7+6YwdEf3oAYau6noGTvLcDI= |                  |
+| COMMENT                   | String        |                                                 |                  |
++---------------------------+---------------+-------------------------------------------------+------------------+
+8 Row(s) produced. Time Elapsed: 0.180s
+bodagraj#COMPUTE_WH@FDW_CORE.FDW>grant create stage on schema public to role ETL_ADMIN;
+                                 grant create stage on schema FDW to role ETL_ADMIN;
+                                 grant usage on integration s3_int to role ETL_ADMIN;
+
++----------------------------------+
+| status                           |
+|----------------------------------|
+| Statement executed successfully. |
++----------------------------------+
+1 Row(s) produced. Time Elapsed: 0.920s
++----------------------------------+
+| status                           |
+|----------------------------------|
+| Statement executed successfully. |
++----------------------------------+
+1 Row(s) produced. Time Elapsed: 0.132s
++----------------------------------+
+| status                           |
+|----------------------------------|
+| Statement executed successfully. |
++----------------------------------+
+1 Row(s) produced. Time Elapsed: 0.122s
+bodagraj#COMPUTE_WH@FDW_CORE.FDW>use schema FDW_CORE.public;
++----------------------------------+
+| status                           |
+|----------------------------------|
+| Statement executed successfully. |
++----------------------------------+
+1 Row(s) produced. Time Elapsed: 0.131s
+bodagraj#COMPUTE_WH@FDW_CORE.PUBLIC>create or replace file format my_csv_format
+                                      type = csv
+                                      field_delimiter = '~'
+                                      skip_header = 0
+                                      null_if = ('NULL', 'null')
+                                      empty_field_as_null = true
+                                      compression = gzip;
++-------------------------------------------------+
+| status                                          |
+|-------------------------------------------------|
+| File format MY_CSV_FORMAT successfully created. |
++-------------------------------------------------+
+1 Row(s) produced. Time Elapsed: 0.149s
+bodagraj#COMPUTE_WH@FDW_CORE.PUBLIC>grant all PRIVILEGES on all file FORMATS in schema FDW_CORE.FDW to etl_admin;
++------------------------------------------------------+
+| status                                               |
+|------------------------------------------------------|
+| Statement executed successfully. 0 objects affected. |
++------------------------------------------------------+
+1 Row(s) produced. Time Elapsed: 0.120s
+bodagraj#COMPUTE_WH@FDW_CORE.PUBLIC>grant all PRIVILEGES on all file FORMATS in schema FDW_CORE.PUBLIC to etl_admin;
+
++------------------------------------------------------+
+| status                                               |
+|------------------------------------------------------|
+| Statement executed successfully. 1 objects affected. |
++------------------------------------------------------+
+1 Row(s) produced. Time Elapsed: 0.131s
+bodagraj#COMPUTE_WH@FDW_CORE.PUBLIC>create stage my_s3_stage storage_integration = s3_int url = 's3://bucket.bodagraj/source/' file_format = my_csv_format;
+
++----------------------------------------------+
+| status                                       |
+|----------------------------------------------|
+| Stage area MY_S3_STAGE successfully created. |
++----------------------------------------------+
+1 Row(s) produced. Time Elapsed: 0.892s
+bodagraj#COMPUTE_WH@FDW_CORE.PUBLIC>grant all PRIVILEGES on stage MY_S3_STAGE to etl_admin;
+                                    grant all PRIVILEGES on future stages in schema PUBLIC to etl_admin;
+                                    grant all PRIVILEGES on future stages in schema FDW to etl_admin;
+
++----------------------------------+
+| status                           |
+|----------------------------------|
+| Statement executed successfully. |
++----------------------------------+
+1 Row(s) produced. Time Elapsed: 0.136s
++----------------------------------+
+| status                           |
+|----------------------------------|
+| Statement executed successfully. |
++----------------------------------+
+1 Row(s) produced. Time Elapsed: 0.131s
++----------------------------------+
+| status                           |
+|----------------------------------|
+| Statement executed successfully. |
++----------------------------------+
