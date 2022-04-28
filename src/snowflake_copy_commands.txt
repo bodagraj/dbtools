@@ -1,0 +1,9 @@
+copy into FDW_CORE.FDW.FIN_ACCOUNT from @my_s3_stage pattern='.*fin_account.*.gz';
+copy into FDW_CORE.FDW.FIN_CARD from @my_s3_stage pattern='.*fin_card.*.gz';
+copy into FDW_CORE.FDW.FIN_CLIENT from @my_s3_stage pattern='.*fin_client.*.gz';
+copy into FDW_CORE.FDW.FIN_DISP from @my_s3_stage pattern='.*fin_disp.*.gz';
+copy into FDW_CORE.FDW.FIN_DISTRICT from @my_s3_stage pattern='.*fin_district.*.gz';
+copy into FDW_CORE.FDW.FIN_LOAN from @my_s3_stage pattern='.*fin_loan.*.gz';
+copy into FDW_CORE.FDW.FIN_ORDER from @my_s3_stage pattern='.*fin_order.*.gz';
+copy into FDW_CORE.FDW.FIN_TRANS from @my_s3_stage pattern='.*fin_trans.*.gz';
+copy into FDW_CORE.FDW.FIN_TRANS_BIG from @my_s3_stage pattern='.*fin_trans_big.*.gz';
